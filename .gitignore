@@ -1,0 +1,13 @@
+# Ignore all plugins except TPM
+plugins/*
+!plugins/tpm/
+
+# Ignore TPM plugin git internals
+plugins/tpm/**/.git*
+plugins/tpm/lib/tmux-test/dot_git*
+plugins/tpm/lib/tmux-test/.travis.yml
+plugins/tpm/tests/
+
+# Ignore plugin installations
+resurrect/
+*.log
