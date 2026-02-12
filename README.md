@@ -165,8 +165,8 @@ Esc, then a
 
 | Action              | Key                |   |
 | ------------------- | ------------------ | - |
-| Split vertical | `Alt+a` then `|` |
-| Split horizontal    | `prefix + -`       |   |
+| Split vertical    | `prefix + v`       |   |
+| Split horizontal    | `prefix + s`       |   |
 | Zoom pane           | `prefix + z`       |   |
 | Navigate panes      | `prefix + h/j/k/l` |   |
 | Swap pane           | `prefix + x`       |   |
