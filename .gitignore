@@ -1,13 +1,15 @@
-# Ignore all plugins except TPM
-plugins/*
-!plugins/tpm/
+# TPM-managed plugins (installed locally, do NOT track)
+plugins/
 
-# Ignore TPM plugin git internals
-plugins/tpm/**/.git*
-plugins/tpm/lib/tmux-test/dot_git*
-plugins/tpm/lib/tmux-test/.travis.yml
-plugins/tpm/tests/
-
-# Ignore plugin installations
+# tmux-resurrect / continuum state files
 resurrect/
 *.log
+
+# OS noise
+.DS_Store
+
+# Editor noise
+*~
+*.swp
+*.swo
+
