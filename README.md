@@ -1,105 +1,254 @@
-# Tmux Configuration for Ubuntu
+# Tmux Configuration
 
-My tmux terminal multiplexer configuration optimized for Ubuntu/Debian systems.
+A modern, keyboard-driven tmux configuration optimized for:
 
-## Installation
+* Ubuntu / Debian
+* macOS
+* SSH-heavy workflows
+* Vim / Neovim users
+* Long-running sessions & development environments
 
-1. Install tmux:
+This setup follows the **XDG directory layout** and keeps plugins managed by TPM (not versioned in this repo).
+
+---
+
+# Installation
+
+## 1. Install tmux
+
+### Ubuntu / Debian
+
+```bash
+sudo apt update
+sudo apt install tmux
+```
+
+### macOS
+
 ```bash
 brew install tmux
 ```
 
-2. Clone the repository:
+---
+
+## 2. Clone this repository
+
 ```bash
-git clone https://github.com/y37y/tmux.git ~/.config/tmux
+git clone https://github.com/y37y/tmux.git ~/Projects/tmux
 ```
 
-3. Install Tmux Plugin Manager (TPM):
+This repository contains only configuration files — plugins are installed separately.
+
+---
+
+## 3. Symlink into `~/.config`
+
+This configuration follows the XDG standard:
+
+```bash
+mkdir -p ~/.config
+ln -sfn ~/Projects/tmux ~/.config/tmux
+ln -sfn ~/.config/tmux/tmux.conf ~/.tmux.conf
+```
+
+This makes:
+
+```
+~/Projects/tmux        → source of truth (git repo)
+~/.config/tmux         → runtime config directory
+~/.tmux.conf           → entrypoint for tmux
+```
+
+---
+
+## 4. Install Tmux Plugin Manager (TPM)
+
+Plugins are **not tracked in this repository**.
+
+Install TPM:
+
 ```bash
 git clone https://github.com/tmux-plugins/tpm ~/.config/tmux/plugins/tpm
 ```
 
-4. Install plugins:
-- Start tmux: `tmux`
-- Press `Alt+a` then `I` (capital i) to install plugins
+---
 
-## Features
+## 5. Install Plugins
 
-### General Settings
-- Custom prefix key (Alt-a)
-- Vi mode keybindings
-- Mouse support
-- Extended color support (256 colors)
-- Increased history limit (1,000,000 lines)
-- Zero escape time
-- Focus events enabled
+Start tmux:
 
-### Plugins
-- `tmux-plugins/tpm`: Plugin manager
-- `tmux-plugins/tmux-sensible`: Sensible defaults
-- `tmux-plugins/tmux-yank`: Clipboard integration
-- `tmux-plugins/tmux-prefix-highlight`: Prefix indicator
-- `tmux-plugins/tmux-resurrect`: Session saving
-- `tmux-plugins/tmux-continuum`: Automatic session saving
-- `catppuccin/tmux`: Theme (Mocha flavor)
-- `wfxr/tmux-fzf-url`: URL handling
-- `omerxx/tmux-sessionx`: Session management
+```bash
+tmux
+```
 
-### Key Bindings
+Then press:
 
-#### Window Management
-- `Alt+b`: Break pane into window
-- `Alt+o`: Kill all panes except current
-- `Alt+q`: Kill window
-- `Alt+e`: Kill all windows except current
-- `Alt+[/]`: Previous/next window
-- `H/L`: Previous/next window
-- `prefix + r`: Rename window
-- `prefix + R`: Reload configuration
+```
+Alt + a    then    Shift + I
+```
 
-#### Pane Management
-- `prefix + |/v`: Split vertically
-- `prefix + -/s`: Split horizontally
-- `prefix + z`: Toggle pane zoom
-- `prefix + h/j/k/l`: Navigate panes
-- `prefix + x`: Swap pane
-- `prefix + P`: Toggle pane border status
+If Meta/Alt does not work (common over SSH on macOS):
 
-#### Copy Mode (Vi)
-- `Alt+c`: Enter copy mode
-- `v`: Begin selection
-- `C-v`: Rectangle toggle
-- `h/j/k/l`: Move cursor
-- `y`: Copy selection
-- `Y`: Copy line
-- `?`: Search reverse
+```
+Esc    a    Shift + I
+```
 
-#### Vim Integration
-Smart pane navigation when using Vim:
-- `C-h/j/k/l`: Navigate panes
-- `C-Left/Right/Up/Down`: Resize panes
+TPM will clone and install all configured plugins.
 
-## Configuration Files
-- `tmux.conf`: Main configuration file
-- `tmux.reset.conf`: Reset configuration
+---
 
-## Theme
-Using Catppuccin Mocha theme with:
-- Status bar at top
-- Custom window status style
-- Custom status line format
-- Custom colors for active/inactive panes
+# Features
 
-## Additional Features
-- Automatic session restore
-- NeoVim session support
-- URL handling with fzf
-- Extended key support
-- System clipboard integration
+## Core Settings
 
-## Key Commands
-- Reload config: `prefix + R`
-- List windows: `prefix + w`
-- Choose session: `prefix + S`
-- Clear screen: `prefix + K`
-- Toggle synchronized panes: `prefix + *`
+* Custom prefix: `Alt + a` (Meta-a)
+* Vi keybindings in copy mode
+* Mouse support enabled
+* 256-color support
+* 1,000,000 line scrollback history
+* Zero escape delay
+* Focus event support
+* Status bar positioned at the top
+* Pane indexing starts at 1
+
+---
+
+# Plugins
+
+Managed via TPM:
+
+* `tmux-plugins/tpm` – Plugin manager
+* `tmux-plugins/tmux-sensible` – Sensible defaults
+* `tmux-plugins/tmux-yank` – Clipboard integration
+* `tmux-plugins/tmux-prefix-highlight` – Prefix indicator
+* `tmux-plugins/tmux-resurrect` – Save/restore sessions
+* `tmux-plugins/tmux-continuum` – Automatic session saving
+* `catppuccin/tmux` – Mocha theme
+* `wfxr/tmux-fzf-url` – URL extraction
+* `omerxx/tmux-sessionx` – Session navigation
+* `fcsonline/tmux-thumbs` – Jump to visible text
+* `sainnhe/tmux-fzf` – Fuzzy navigation
+
+---
+
+# Key Bindings
+
+## Prefix
+
+```
+Alt + a
+```
+
+If Meta is unreliable:
+
+```
+Esc, then a
+```
+
+---
+
+## Window Management
+
+| Action                 | Key          |
+| ---------------------- | ------------ |
+| New window             | `prefix + a` |
+| Kill window            | `Alt + q`    |
+| Kill all other windows | `Alt + e`    |
+| Previous window        | `Alt + [`    |
+| Next window            | `Alt + ]`    |
+| Rename window          | `prefix + r` |
+| Reload config          | `prefix + R` |
+
+---
+
+## Pane Management
+
+| Action              | Key                |   |
+| ------------------- | ------------------ | - |
+| Split vertical | `Alt+a` then `|` |
+| Split horizontal    | `prefix + -`       |   |
+| Zoom pane           | `prefix + z`       |   |
+| Navigate panes      | `prefix + h/j/k/l` |   |
+| Swap pane           | `prefix + x`       |   |
+| Toggle pane borders | `prefix + P`       |   |
+
+---
+
+## Copy Mode (Vi Style)
+
+| Action           | Key        |
+| ---------------- | ---------- |
+| Enter copy mode  | `Alt + c`  |
+| Begin selection  | `v`        |
+| Rectangle select | `Ctrl + v` |
+| Copy selection   | `y`        |
+| Copy line        | `Y`        |
+| Reverse search   | `?`        |
+
+---
+
+## Vim Integration
+
+Smart navigation when inside Vim/Neovim:
+
+```
+Ctrl + h/j/k/l
+```
+
+Pane resizing:
+
+```
+Ctrl + Arrow keys
+```
+
+---
+
+# Configuration Files
+
+* `tmux.conf` – Main configuration
+* `tmux.reset.conf` – Keybinding reset layer
+
+---
+
+# Useful Commands
+
+Reload config:
+
+```bash
+prefix + R
+```
+
+List sessions:
+
+```bash
+prefix + S
+```
+
+Clear screen:
+
+```bash
+prefix + K
+```
+
+Toggle synchronized panes:
+
+```bash
+prefix + *
+```
+
+---
+
+# Updating Plugins
+
+Update all plugins:
+
+```
+prefix + U
+```
+
+Clean unused plugins:
+
+```
+prefix + Alt + u
+```
+
