@@ -156,8 +156,8 @@ Esc, then a
 | Kill all other windows | `Alt + e`    |
 | Previous window        | `Alt + [`    |
 | Next window            | `Alt + ]`    |
-| Rename window          | `prefix + r` |
-| Reload config          | `prefix + R` |
+| Rename window          | `prefix + n` |
+| Reload config          | `prefix + r` |
 
 ---
 
