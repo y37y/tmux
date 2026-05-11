@@ -22,6 +22,15 @@ _clipboard_host() {
     fi
     if [ -n "${SSH_CLIENT:-}" ]; then
         ip="${SSH_CLIENT%% *}"
+        # Try Tailscale whois first (works on tailnet hosts without DNS config).
+        if command -v tailscale >/dev/null 2>&1; then
+            name=$(tailscale whois "$ip" 2>/dev/null | awk '/^  Name:/ {print $2; exit}' | cut -d. -f1)
+            if [ -n "$name" ]; then
+                printf '%s' "$name"
+                return
+            fi
+        fi
+        # Fallback to system resolver.
         getent hosts "$ip" 2>/dev/null | awk '{print $2}' | cut -d. -f1 | head -1
     fi
 }
