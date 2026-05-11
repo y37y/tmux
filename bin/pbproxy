@@ -1,0 +1,50 @@
+#!/bin/sh
+# pbproxy - clipboard sink/source via SSH to operator's mac.
+#
+# Resolution:
+#   1. $CLIPBOARD_HOST env (set in ~/.zshrc.local for hardcoded preference)
+#   2. Auto-detect from $SSH_CLIENT IP via local hostname resolution
+#   3. No-op (graceful)
+#
+# Usage:
+#   <something> | pbproxy copy   # ship stdin to mac clipboard
+#   pbproxy paste                # print mac clipboard to stdout
+#
+# Pair with:
+#   bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-no-clear "pbproxy copy"
+
+set -e
+
+_clipboard_host() {
+    if [ -n "${CLIPBOARD_HOST:-}" ]; then
+        printf '%s' "$CLIPBOARD_HOST"
+        return
+    fi
+    if [ -n "${SSH_CLIENT:-}" ]; then
+        ip="${SSH_CLIENT%% *}"
+        getent hosts "$ip" 2>/dev/null | awk '{print $2}' | cut -d. -f1 | head -1
+    fi
+}
+
+action="${1:-copy}"
+host="$(_clipboard_host)"
+
+case "$action" in
+    copy)
+        if [ -z "$host" ]; then
+            cat >/dev/null
+            exit 0
+        fi
+        exec ssh -o ConnectTimeout=3 "$host" pbcopy
+        ;;
+    paste)
+        if [ -z "$host" ]; then
+            exit 0
+        fi
+        exec ssh -o ConnectTimeout=3 "$host" pbpaste
+        ;;
+    *)
+        echo "usage: pbproxy {copy|paste}" >&2
+        exit 2
+        ;;
+esac
