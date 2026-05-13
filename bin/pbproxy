@@ -1,37 +1,52 @@
 #!/bin/sh
 # pbproxy - clipboard sink/source via SSH to operator's mac.
 #
-# Resolution:
-#   1. $CLIPBOARD_HOST env (set in ~/.zshrc.local for hardcoded preference)
-#   2. Auto-detect from $SSH_CLIENT IP via local hostname resolution
-#   3. No-op (graceful)
+# Resolution order (first hit wins):
+#   1. $CLIPBOARD_HOST env (ad-hoc shell override)
+#   2. ~/.config/clipboard-host file (per-host pin)
+#   3. Tailscale peer tagged "tag:operator" and Online (fleet auto-discovery)
+#
+# Earlier versions resolved via $SSH_CLIENT IP + tailscale whois, which silently
+# fails under mosh/cmux (no SSH_CLIENT in tmux server env). Removed.
+#
+# Setup (pick one):
+#   echo mini > ~/.config/clipboard-host                       # per-host pin
+#   tailscale up --ssh --advertise-tags=tag:operator           # on the Mac, fleet-wide
 #
 # Usage:
-#   <something> | pbproxy copy   # ship stdin to mac clipboard
-#   pbproxy paste                # print mac clipboard to stdout
+#   <stdin> | pbproxy copy
+#   pbproxy paste
 #
 # Pair with:
 #   bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-no-clear "pbproxy copy"
 
-set -e
+set -eu
 
 _clipboard_host() {
+    # 1. explicit env
     if [ -n "${CLIPBOARD_HOST:-}" ]; then
         printf '%s' "$CLIPBOARD_HOST"
         return
     fi
-    if [ -n "${SSH_CLIENT:-}" ]; then
-        ip="${SSH_CLIENT%% *}"
-        # Try Tailscale whois first (works on tailnet hosts without DNS config).
-        if command -v tailscale >/dev/null 2>&1; then
-            name=$(tailscale whois "$ip" 2>/dev/null | awk '/^  Name:/ {print $2; exit}' | cut -d. -f1)
-            if [ -n "$name" ]; then
-                printf '%s' "$name"
-                return
-            fi
+    # 2. per-host private file
+    if [ -r "$HOME/.config/clipboard-host" ]; then
+        name=$(head -1 "$HOME/.config/clipboard-host" | tr -d '[:space:]')
+        if [ -n "$name" ]; then
+            printf '%s' "$name"
+            return
         fi
-        # Fallback to system resolver.
-        getent hosts "$ip" 2>/dev/null | awk '{print $2}' | cut -d. -f1 | head -1
+    fi
+    # 3. Tailscale tag:operator (online peer only)
+    if command -v tailscale >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        name=$(tailscale status --json 2>/dev/null \
+            | jq -r '.Peer[]?
+                | select((.Tags // []) | index("tag:operator"))
+                | select(.Online == true)
+                | .HostName' 2>/dev/null | head -1)
+        if [ -n "$name" ]; then
+            printf '%s' "$name"
+            return
+        fi
     fi
 }
 
@@ -44,13 +59,13 @@ case "$action" in
             cat >/dev/null
             exit 0
         fi
-        exec ssh -o ConnectTimeout=3 "$host" pbcopy
+        exec ssh -o ConnectTimeout=3 -o BatchMode=yes "$host" pbcopy
         ;;
     paste)
         if [ -z "$host" ]; then
             exit 0
         fi
-        exec ssh -o ConnectTimeout=3 "$host" pbpaste
+        exec ssh -o ConnectTimeout=3 -o BatchMode=yes "$host" pbpaste
         ;;
     *)
         echo "usage: pbproxy {copy|paste}" >&2
