@@ -3,15 +3,12 @@
 #
 # Resolution order (first hit wins):
 #   1. $CLIPBOARD_HOST env (ad-hoc shell override)
-#   2. ~/.config/clipboard-host file (per-host pin)
-#   3. Tailscale peer tagged "tag:operator" and Online (fleet auto-discovery)
+#   2. Active Tailscale Mac peer (auto: online macOS with LastWrite < 120s ago)
+#   3. ~/.config/clipboard-host file (manual pin for edge cases)
 #
-# Earlier versions resolved via $SSH_CLIENT IP + tailscale whois, which silently
-# fails under mosh/cmux (no SSH_CLIENT in tmux server env). Removed.
-#
-# Setup (pick one):
-#   echo mini > ~/.config/clipboard-host                       # per-host pin
-#   tailscale up --ssh --advertise-tags=tag:operator           # on the Mac, fleet-wide
+# Layer 2 is the primary path for multi-Mac users (mini/m2/m3). It picks the
+# Mac whose Tailscale tunnel is currently exchanging packets with this host,
+# which is the Mac you're moshed in from. No per-swap config needed.
 #
 # Usage:
 #   <stdin> | pbproxy copy
@@ -23,26 +20,33 @@
 set -eu
 
 _clipboard_host() {
-    # 1. explicit env
+    # 1. explicit env (manual override)
     if [ -n "${CLIPBOARD_HOST:-}" ]; then
         printf '%s' "$CLIPBOARD_HOST"
         return
     fi
-    # 2. per-host private file
-    if [ -r "$HOME/.config/clipboard-host" ]; then
-        name=$(head -1 "$HOME/.config/clipboard-host" | tr -d '[:space:]')
+    # 2. Active Tailscale Mac peer (primary auto-detect)
+    #    Pick the online macOS peer with the most recent LastWrite within 120s.
+    #    LastWrite advances whenever the peer sends a packet over the tunnel,
+    #    so the Mac you're moshed in from wins.
+    if command -v tailscale >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
+        now=$(date -u +%s)
+        cutoff=$((now - 120))
+        name=$(tailscale status --json 2>/dev/null | jq -r --argjson cutoff "$cutoff" '
+            .Peer[]?
+            | select(.OS == "macOS" and .Online == true)
+            | (.LastWrite | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) as $t
+            | select($t > $cutoff)
+            | "\($t) \(.HostName)"' 2>/dev/null \
+            | sort -nr | head -1 | awk '{print $2}')
         if [ -n "$name" ]; then
             printf '%s' "$name"
             return
         fi
     fi
-    # 3. Tailscale tag:operator (online peer only)
-    if command -v tailscale >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-        name=$(tailscale status --json 2>/dev/null \
-            | jq -r '.Peer[]?
-                | select((.Tags // []) | index("tag:operator"))
-                | select(.Online == true)
-                | .HostName' 2>/dev/null | head -1)
+    # 3. file pin (manual override when no active Mac peer)
+    if [ -r "$HOME/.config/clipboard-host" ]; then
+        name=$(head -1 "$HOME/.config/clipboard-host" | tr -d '[:space:]')
         if [ -n "$name" ]; then
             printf '%s' "$name"
             return
