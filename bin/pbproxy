@@ -2,49 +2,51 @@
 # pbproxy - clipboard sink/source via SSH to operator's mac.
 #
 # Resolution order (first hit wins):
-#   1. $CLIPBOARD_HOST env (ad-hoc shell override)
-#   2. Active Tailscale Mac peer (auto: online macOS with LastWrite < 120s ago)
-#   3. ~/.config/clipboard-host file (manual pin for edge cases)
-#
-# Layer 2 is the primary path for multi-Mac users (mini/m2/m3). It picks the
-# Mac whose Tailscale tunnel is currently exchanging packets with this host,
-# which is the Mac you're moshed in from. No per-swap config needed.
+#   1. $CLIPBOARD_HOST env (manual override)
+#   2. tmux client PID arg: read SSH_CONNECTION from /proc/<pid>/environ and
+#      resolve the client IP via `tailscale whois` (deterministic — picks the
+#      exact Mac that initiated the drag, even across mini / m2 / m3)
+#   3. ~/.config/clipboard-host file (manual pin, used when invoked without a
+#      client PID, e.g. from a plain shell pipeline)
 #
 # Usage:
-#   <stdin> | pbproxy copy
-#   pbproxy paste
+#   <stdin> | pbproxy copy [client_pid]
+#   pbproxy paste [client_pid]
 #
-# Pair with:
-#   bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe-no-clear "pbproxy copy"
+# Pair with (tmux.conf):
+#   bind-key -T copy-mode-vi MouseDragEnd1Pane \
+#       send-keys -X copy-pipe-no-clear "~/.config/tmux/bin/pbproxy copy #{client_pid}"
 
 set -eu
 
+_from_client_pid() {
+    pid="$1"
+    case "$pid" in ''|*[!0-9]*) return ;; esac
+    environ="/proc/$pid/environ"
+    [ -r "$environ" ] || return
+    ssh_conn=$(tr '\0' '\n' < "$environ" 2>/dev/null \
+        | awk -F= '/^SSH_CONNECTION=/{print $2; exit}')
+    [ -n "$ssh_conn" ] || return
+    ip="${ssh_conn%% *}"
+    [ -n "$ip" ] || return
+    command -v tailscale >/dev/null 2>&1 || return
+    tailscale whois "$ip" 2>/dev/null \
+        | awk '/^  Name:/{print $2; exit}' \
+        | cut -d. -f1
+}
+
 _clipboard_host() {
-    # 1. explicit env (manual override)
     if [ -n "${CLIPBOARD_HOST:-}" ]; then
         printf '%s' "$CLIPBOARD_HOST"
         return
     fi
-    # 2. Active Tailscale Mac peer (primary auto-detect)
-    #    Pick the online macOS peer with the most recent LastWrite within 120s.
-    #    LastWrite advances whenever the peer sends a packet over the tunnel,
-    #    so the Mac you're moshed in from wins.
-    if command -v tailscale >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
-        now=$(date -u +%s)
-        cutoff=$((now - 120))
-        name=$(tailscale status --json 2>/dev/null | jq -r --argjson cutoff "$cutoff" '
-            .Peer[]?
-            | select(.OS == "macOS" and .Online == true)
-            | (.LastWrite | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601) as $t
-            | select($t > $cutoff)
-            | "\($t) \(.HostName)"' 2>/dev/null \
-            | sort -nr | head -1 | awk '{print $2}')
+    if [ -n "${1:-}" ]; then
+        name=$(_from_client_pid "$1")
         if [ -n "$name" ]; then
             printf '%s' "$name"
             return
         fi
     fi
-    # 3. file pin (manual override when no active Mac peer)
     if [ -r "$HOME/.config/clipboard-host" ]; then
         name=$(head -1 "$HOME/.config/clipboard-host" | tr -d '[:space:]')
         if [ -n "$name" ]; then
@@ -55,7 +57,8 @@ _clipboard_host() {
 }
 
 action="${1:-copy}"
-host="$(_clipboard_host)"
+client_pid="${2:-}"
+host="$(_clipboard_host "$client_pid")"
 
 case "$action" in
     copy)
@@ -72,7 +75,7 @@ case "$action" in
         exec ssh -o ConnectTimeout=3 -o BatchMode=yes "$host" pbpaste
         ;;
     *)
-        echo "usage: pbproxy {copy|paste}" >&2
+        echo "usage: pbproxy {copy|paste} [client_pid]" >&2
         exit 2
         ;;
 esac
