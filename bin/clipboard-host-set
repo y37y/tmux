@@ -1,0 +1,45 @@
+#!/bin/sh
+# clipboard-host-set <hostname> [host1 host2 ...]
+#
+# Pin pbproxy's clipboard target to <hostname> across the Linux fleet.
+# Use when switching primary operator Mac (mini <-> m2).
+#
+# Examples:
+#   clipboard-host-set mini                  # update default fleet to mini
+#   clipboard-host-set m2 trp tuf            # update explicit hosts to m2
+#
+# Reads fleet list from ~/.config/clipboard-host-fleet (one hostname per line)
+# if no explicit hosts passed. Falls back to: is1 trp tuf.
+#
+# Each host must be reachable via `ssh <name>` non-interactively. Agent forward
+# (ssh-add the key) before running if going through a jump.
+
+set -eu
+
+target="${1:-}"
+if [ -z "$target" ]; then
+    echo "usage: clipboard-host-set <hostname> [host1 host2 ...]" >&2
+    exit 2
+fi
+shift || true
+
+if [ "$#" -gt 0 ]; then
+    fleet="$*"
+elif [ -r "$HOME/.config/clipboard-host-fleet" ]; then
+    fleet=$(grep -v '^[[:space:]]*\(#\|$\)' "$HOME/.config/clipboard-host-fleet" | tr '\n' ' ')
+else
+    fleet="is1 trp tuf"
+fi
+
+fail=0
+for h in $fleet; do
+    if ssh -o ConnectTimeout=5 -o BatchMode=yes "$h" \
+        "mkdir -p ~/.config && echo '$target' > ~/.config/clipboard-host" 2>/dev/null; then
+        printf 'ok   %s -> %s\n' "$h" "$target"
+    else
+        printf 'fail %s (unreachable or auth)\n' "$h"
+        fail=$((fail + 1))
+    fi
+done
+
+exit "$fail"
